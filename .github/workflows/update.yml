@@ -1,5 +1,10 @@
 name: Update knowledge base
 
+permissions:
+  contents: write      # ← geeft de job push‑rechten
+  # (optioneel) pull-requests: write
+
+
 on:
   schedule:
     # elke nacht om 03:30 UTC (≈ 05:30 CET/CEST)
