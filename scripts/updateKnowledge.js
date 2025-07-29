@@ -18,7 +18,7 @@ const AWESOME_README =
 
 const NPM_TEXT_QUERIES = ['n8n-nodes-', 'n8n-node-'];
 const NPM_KEYWORD_QUERY = 'keywords:n8n-community-node';   // officiële tag
-const NPMS_PAGE_SIZE = 250;
+const NPMS_PAGE_SIZE = 500;
 const NPMS_MAX_RESULTS = 2400;                             // ± 5 pag., pas aan naar wens
 const REGISTRY_PAGE_SIZE = 150;                            // lager = minder kans op 429
 const REGISTRY_BACKOFF_MS = 20_000;                        // 12 s wachten bij 429
