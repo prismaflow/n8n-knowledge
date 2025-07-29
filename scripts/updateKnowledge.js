@@ -16,7 +16,7 @@ const AWESOME_README =
 
 const NPM_TEXT_QUERIES = ['n8n-nodes-', 'n8n-node-'];          // brute‑text
 const NPM_KEYWORD_QUERY = 'keywords:n8n-community-node';       // officiële tag
-const NPM_PAGE_SIZE = 250;
+const NPM_PAGE_SIZE = 150;
 
 /* ---------- helpers ---------- */
 async function fetchJson(url) {
