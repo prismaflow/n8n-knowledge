@@ -12,7 +12,7 @@ const HEADERS = {
 const GH_CORE_CONTENTS =
   'https://api.github.com/repos/n8n-io/n8n/contents/packages/nodes-base/nodes';
 const GH_TOPIC_SEARCH =
-  'https://api.github.com/search/repositories?q=topic:n8n-community-node&per_page=100';
+  'https://api.github.com/search/repositories?q=topic:n8n+community+nodes&per_page=100';
 const AWESOME_README =
   'https://raw.githubusercontent.com/restyler/awesome-n8n/main/README.md';
 
@@ -20,7 +20,7 @@ const NPM_TEXT_QUERIES = ['n8n-nodes-', 'n8n-node-'];
 const NPM_KEYWORD_QUERY = 'keywords:n8n-community-node';   // officiële tag
 const NPMS_PAGE_SIZE = 250;
 const NPMS_MAX_RESULTS = 2400;                             // ± 5 pag., pas aan naar wens
-const REGISTRY_PAGE_SIZE = 500;                            // lager = minder kans op 429
+const REGISTRY_PAGE_SIZE = 4000;                            // lager = minder kans op 429
 const REGISTRY_BACKOFF_MS = 20_000;                        // 12 s wachten bij 429
 
 /* ─────────────────── Helpers ─────────────────── */
