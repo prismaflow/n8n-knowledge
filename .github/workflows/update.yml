@@ -1,15 +1,12 @@
 name: Update knowledge base
 
 permissions:
-  contents: write      # ← geeft de job push‑rechten
-  # (optioneel) pull-requests: write
-
+  contents: write             # push‑recht voor commit
 
 on:
   schedule:
-    # elke nacht om 03:30 UTC (≈ 05:30 CET/CEST)
     - cron: "30 3 * * *"
-  workflow_dispatch: {}   # handmatig starten
+  workflow_dispatch:
 
 jobs:
   refresh:
@@ -17,19 +14,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Node installeren – zónder cache‑optie
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # Verwijder deze stap, niet nodig:
-      # - name: Install dependencies
-      #   run: npm ci
-
       - name: Run scraper
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # ← doorgeven aan script
         run: node scripts/updateKnowledge.js
 
       - uses: EndBug/add-and-commit@v9
+        if: success()
         with:
+          add: '.'
           default_author: github_actions
-          message: "chore: nightly node‑list refresh"
+          message: "chore: auto‑refresh node‑list"
