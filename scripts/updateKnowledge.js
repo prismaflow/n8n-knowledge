@@ -1,91 +1,141 @@
-// scripts/updateKnowledge.js  –  Node ≥18
+// scripts/updateKnowledge.js   –   Node ≥18
 import { mkdir, writeFile } from 'fs/promises';
 
-/* ---------- Config ---------- */
-const GH_TOKEN = process.env.GITHUB_TOKEN || '';          // token uit workflow‑runner
+const GH_TOKEN = process.env.GITHUB_TOKEN || '';
 const HEADERS = {
   'User-Agent': 'n8n-knowledge-bot',
   ...(GH_TOKEN ? { Authorization: `Bearer ${GH_TOKEN}` } : {}),
 };
 
-const GH_CONTENTS_URL =
+const GH_CONTENTS =
   'https://api.github.com/repos/n8n-io/n8n/contents/packages/nodes-base/nodes';
+const GH_TOPIC_SEARCH =
+  'https://api.github.com/search/repositories?q=topic:n8n-community-node&per_page=100';
 const AWESOME_README =
   'https://raw.githubusercontent.com/restyler/awesome-n8n/main/README.md';
-const NPM_SEARCH =
-  'https://registry.npmjs.org/-/v1/search?text=keywords:n8n-community-node&page_size=250';
 
-/* ---------- Helpers ---------- */
+const NPM_TEXT_QUERIES = ['n8n-nodes-', 'n8n-node-'];          // brute‑text
+const NPM_KEYWORD_QUERY = 'keywords:n8n-community-node';       // officiële tag
+const NPM_PAGE_SIZE = 250;
+
+/* ---------- helpers ---------- */
 async function fetchJson(url) {
-  const res = await fetch(url, { headers: HEADERS });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} @ ${url}`);
-  return res.json();
+  const r = await fetch(url, { headers: HEADERS });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText} @ ${url}`);
+  return r.json();
 }
 async function fetchText(url) {
-  const res = await fetch(url, { headers: HEADERS });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} @ ${url}`);
-  return res.text();
+  const r = await fetch(url, { headers: HEADERS });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText} @ ${url}`);
+  return r.text();
 }
 
-/* ---------- Core nodes ---------- */
+/* ---------- core nodes ---------- */
 async function getCoreNodes() {
-  // Eén call – directory‑listing retourneert alles
-  const list = await fetchJson(GH_CONTENTS_URL);
+  const list = await fetchJson(GH_CONTENTS);
   return list.filter((i) => i.type === 'dir').map((i) => i.name);
 }
 
-/* ---------- Community nodes ---------- */
-async function getCommunityFromReadme() {
+/* ---------- community helpers ---------- */
+function dedupe(arr) {
+  return [...new Set(arr.filter(Boolean))];
+}
+
+/* --- 1) README scrape --- */
+async function communityFromReadme() {
   try {
     const md = await fetchText(AWESOME_README);
-    const re = /(?:@[\w-]+\/)?n8n[-_]nodes[\w/-]*/g;
-    return [...new Set(md.match(re) || [])];
+    const re =
+      /(?:@[\w-]+\/)?n8n[-_](?:node|nodes|community)[-\w]+/gi; // ruimer patroon
+    return dedupe(md.match(re) || []);
   } catch (e) {
-    console.warn('README‑scrape mislukt:', e.message);
-    return [];
-  }
-}
-async function getCommunityFromNpm() {
-  try {
-    const data = await fetchJson(NPM_SEARCH);
-    return (data.objects || []).map((o) => o.package?.name).filter(Boolean);
-  } catch (e) {
-    console.warn('npm‑search mislukt:', e.message);
+    console.warn('README scrape faalt:', e.message);
     return [];
   }
 }
 
-/* ---------- Main ---------- */
+/* --- 2) npm text search (paginated) --- */
+async function npmSearchText(q) {
+  let from = 0;
+  let results = [];
+  while (true) {
+    const url = `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(
+      q,
+    )}&size=${NPM_PAGE_SIZE}&from=${from}`;
+    const data = await fetchJson(url);
+    const names =
+      data.objects?.map((o) => o.package?.name.trim()).filter(Boolean) || [];
+    results.push(...names);
+    if (names.length < NPM_PAGE_SIZE) break; // laatste page
+    from += NPM_PAGE_SIZE;
+  }
+  return results;
+}
+
+/* --- 3) GitHub topic search (single call) --- */
+async function communityFromGithubTopic() {
+  try {
+    const data = await fetchJson(GH_TOPIC_SEARCH);
+    return data.items?.map((repo) => repo.name.trim()).filter(Boolean) || [];
+  } catch (e) {
+    console.warn('GitHub topic search faalt:', e.message);
+    return [];
+  }
+}
+
+/* ---------- main ---------- */
 (async () => {
   try {
-    console.log('⏳  Core nodes ophalen…');
+    /* Core */
+    console.log('⏳  Core nodes…');
     const core = await getCoreNodes();
-    console.log(`   → ${core.length} core‑nodes`);
+    console.log(`   → ${core.length}`);
 
-    console.log('⏳  Community nodes (README)…');
-    let community = await getCommunityFromReadme();
-    if (community.length < 50) {
-      console.log('ℹ️  Fallback naar npm‑API…');
-      community = await getCommunityFromNpm();
+    /* Community: README */
+    console.log('⏳  README…');
+    const readmePkgs = await communityFromReadme();
+    console.log(`   → ${readmePkgs.length}`);
+
+    /* Community: npm text & keyword search */
+    console.log('⏳  npm‑search…');
+    let npmPkgs = [];
+    for (const q of [...NPM_TEXT_QUERIES, NPM_KEYWORD_QUERY]) {
+      const batch = await npmSearchText(q);
+      npmPkgs.push(...batch);
     }
-    console.log(`   → ${community.length} community‑nodes`);
+    npmPkgs = dedupe(npmPkgs);
+    console.log(`   → ${npmPkgs.length}`);
 
-    const nodes = [...new Set([...core, ...community])].sort();
+    /* Community: GitHub topic */
+    console.log('⏳  GitHub topic…');
+    const ghPkgs = await communityFromGithubTopic();
+    console.log(`   → ${ghPkgs.length}`);
 
+    /* Combine & dedupe */
+    const community = dedupe([...readmePkgs, ...npmPkgs, ...ghPkgs]);
+    const allNodes = dedupe([...core, ...community]).sort();
+
+    /* Write file */
     const payload = {
       _generated: new Date().toISOString(),
       coreCount: core.length,
       communityCount: community.length,
-      total: nodes.length,
-      nodes,
+      total: allNodes.length,
+      nodes: allNodes,
+      meta: {
+        readme: readmePkgs.length,
+        npm: npmPkgs.length,
+        githubTopic: ghPkgs.length,
+      },
     };
 
     await mkdir('data', { recursive: true });
     await writeFile('data/nodes.json', JSON.stringify(payload, null, 2));
-    console.log(`✅  nodes.json geschreven (${nodes.length} nodes)`);
-  } catch (err) {
-    console.error('❌  Fout in scraper:', err);
-    // Exit 1 zodat je het ziet, maar commentaar hieronder
+    console.log(
+      `✅  nodes.json (${payload.total} totaal – ${payload.communityCount} community)`,
+    );
+  } catch (e) {
+    console.error('❌  Scraper‑error:', e);
     process.exit(1);
   }
 })();
