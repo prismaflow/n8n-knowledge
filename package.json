@@ -1,1 +1,12 @@
+{
+  "name": "n8n-knowledge",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "update": "node scripts/updateKnowledge.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {}
+}
 
